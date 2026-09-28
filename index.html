@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14181F">
+<title>Mi Rutina</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<style>
+:root{
+  --ground:#F2F3F5; --surface:#FFFFFF; --sunk:#E6E8EC; --ink:#161A21; --muted:#667080; --line:#D8DCE2;
+  --good:#1F8A5B; --good-soft:#D4EEE0; --bad:#C2412F; --bad-soft:#F6DCD7; --accent:#2B5FD9; --accent-ink:#FFFFFF;
+  --font:system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono:ui-monospace, "SF Mono", Menlo, "Roboto Mono", monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    color-scheme:dark;
+    --ground:#0F1217; --surface:#171B22; --sunk:#0A0C10; --ink:#E7EAF0; --muted:#8B94A3; --line:#262C36;
+    --good:#43C487; --good-soft:#15352A; --bad:#EF6F5C; --bad-soft:#3A1D19; --accent:#6D97FF; --accent-ink:#0B1020;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--ground);color:var(--ink);font:16px/1.4 var(--font);-webkit-tap-highlight-color:transparent}
+.wrap{max-width:540px;margin:0 auto;padding-inline:16px;padding-block:calc(14px + env(safe-area-inset-top,0px)) calc(60px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:16px}
+button,textarea{font:inherit;color:inherit}
+button{background:none;border:0;cursor:pointer;padding:0}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.brand{font-weight:800;font-size:20px;letter-spacing:-.02em}
+.tabs{display:flex;background:var(--sunk);border-radius:999px;padding:3px}
+.tabs button{padding:7px 13px;border-radius:999px;font-weight:600;font-size:14px;color:var(--muted)}
+.tabs button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgb(0 0 0 / .1)}
+
+.day{display:grid;grid-template-columns:44px 1fr 44px;align-items:center}
+.nav{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;color:var(--muted)}
+.nav:disabled{opacity:.2}
+.date{text-align:center}
+.date .rel{font-weight:800;font-size:28px;letter-spacing:-.02em;line-height:1.1}
+.date .abs{font:500 13px var(--mono);color:var(--muted);margin-top:2px}
+.score{display:flex;align-items:center;gap:10px}
+.bar{flex:1;height:8px;border-radius:9px;background:var(--sunk);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--good);transition:width .3s}
+.score span{font:600 14px var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
+
+.list{background:var(--surface);border:1px solid var(--line);border-radius:18px;overflow:hidden}
+.row{display:flex;align-items:center;gap:12px;padding:12px 14px;border-top:1px solid var(--line);min-height:64px}
+.row:first-child{border-top:0}
+.info{flex:1;min-width:0}
+.name{font-weight:600;line-height:1.25}
+.meta{font-size:12.5px;color:var(--muted);margin-top:3px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.chip{font:600 11.5px var(--mono);padding:2px 7px;border-radius:99px;background:var(--sunk);color:var(--muted);font-variant-numeric:tabular-nums}
+.chip.ok{background:var(--good-soft);color:var(--good)}
+
+.chk{flex:none;width:44px;height:44px;border-radius:13px;border:2px solid var(--line);display:grid;place-items:center}
+.chk svg{width:22px;height:22px;stroke:#fff;stroke-width:3;fill:none;opacity:0}
+.chk.on{background:var(--good);border-color:var(--good)}
+.chk.on svg{opacity:1}
+.seg{flex:none;display:flex;gap:6px}
+.seg button{min-width:52px;height:44px;padding:0 10px;border-radius:12px;border:2px solid var(--line);font-weight:700;font-size:14px;color:var(--muted)}
+.seg button.on.good{background:var(--good);border-color:var(--good);color:#fff}
+.seg button.on.bad{background:var(--bad);border-color:var(--bad);color:#fff}
+.seg button.on.pick{background:var(--good);border-color:var(--good);color:#fff}
+
+h2{font-size:17px;margin:0;font-weight:800}
+.sec{display:flex;flex-direction:column;gap:10px}
+.weekhead{display:flex;align-items:center;justify-content:space-between}
+.weekhead .nav{width:36px;height:36px}
+.gridbox{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:10px 8px;overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{font:600 11px var(--mono);color:var(--muted);padding:4px 2px;text-align:center}
+th:first-child{text-align:left;padding-left:6px}
+td{padding:5px 2px;text-align:center;border-top:1px solid var(--line)}
+td.t{text-align:left;padding-left:6px;font-weight:600;font-size:13px;line-height:1.2}
+td.c span{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:7px;background:var(--sunk);font:700 10px var(--mono);color:#fff}
+td.c span.g{background:var(--good)} td.c span.b{background:var(--bad)}
+td.c.today span{outline:2px solid var(--ink);outline-offset:1px}
+td.n{font:600 12px var(--mono);white-space:nowrap;color:var(--muted);font-variant-numeric:tabular-nums}
+td.n.ok{color:var(--good)}
+.weeks{display:flex;flex-direction:column;gap:6px}
+.wk{display:grid;grid-template-columns:7.5em 1fr 3.2em;gap:10px;align-items:center;font-size:13px}
+.wk .l{font:500 12px var(--mono);color:var(--muted)}
+.wk .b{height:10px;border-radius:9px;background:var(--sunk);overflow:hidden}
+.wk .b i{display:block;height:100%;background:var(--good)}
+.wk .p{font:600 12px var(--mono);text-align:right;font-variant-numeric:tabular-nums}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.card p{margin:0;font-size:14px;color:var(--muted)}
+.card b{color:var(--ink)}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+.btn{padding:11px 16px;border-radius:12px;font-weight:700;background:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:var(--sunk);color:var(--ink)}
+textarea{width:100%;min-height:90px;border:1px solid var(--line);border-radius:12px;background:var(--ground);padding:10px;font:12px var(--mono);resize:vertical}
+.note{min-height:110px;font:15px/1.45 var(--font);background:var(--surface);border-radius:18px;padding:12px 14px}
+.notes{display:flex;flex-direction:column;gap:8px}
+.notes .card{gap:4px}
+.notes .d{font:600 12px var(--mono);color:var(--muted)}
+.notes .x{font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere}
+.warn{color:var(--bad)!important;font-weight:600}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--ground);padding:10px 16px;border-radius:12px;font-size:14px;font-weight:600;max-width:calc(100% - 32px);text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">Mi Rutina</div>
+    <div class="tabs" role="tablist">
+      <button id="tab-day" role="tab" aria-selected="true">Hoy</button>
+      <button id="tab-week" role="tab" aria-selected="false">Semana</button>
+      <button id="tab-data" role="tab" aria-selected="false">Datos</button>
+    </div>
+  </header>
+  <main id="view"></main>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+// ---------- tareas y objetivos (para cambiarlas, editar esta lista) ----------
+// type: check = hecho / no hecho · pick = elegir una opción (cuenta como hecho) · yesno = Sí / No, "good" es la respuesta buena
+const TASKS = [
+  { id:'bjjvid',  name:'Video de BJJ',             note:'30 min', type:'check', goal:7 },
+  { id:'bjj',     name:'BJJ',                      note:'',       type:'pick',  options:['Gi','No Gi'], goal:3 },
+  { id:'push',    name:'Gym Push',                 note:'calistenia', type:'check', goal:2 },
+  { id:'pull',    name:'Gym Pull',                 note:'calistenia', type:'check', goal:2 },
+  { id:'ai',      name:'Curso de AI',              note:'30 min', type:'check', goal:7 },
+  { id:'redpill', name:'Red Pill',                 note:'15 min', type:'check', goal:7 },
+  { id:'lead',    name:'Leadership skills',        note:'15 min', type:'check', goal:7 },
+  { id:'comer',   name:'Comer bien',               note:'',       type:'yesno', good:'Sí', goal:7 },
+  { id:'fap',     name:'Fap',                      note:'objetivo: No', type:'yesno', good:'No', goal:7 },
+];
+
+(() => {
+  const $ = s => document.querySelector(s);
+  const DOW = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+  const MON = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  const key = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const parse = k => { const [y,m,d] = k.split('-').map(Number); return new Date(y, m-1, d); };
+  const shift = (k, n) => { const d = parse(k); d.setDate(d.getDate()+n); return key(d); };
+  const today = () => key(new Date());
+  const weekStart = k => shift(k, -parse(k).getDay());   // semana de domingo a sábado
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const CHECK = '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const L = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg>';
+  const R = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg>';
+
+  // ---------- datos: guardados en el navegador ----------
+  const LS = 'mi-rutina-v1';
+  let data = { days: {}, lastBackup: null };
+  try { const d = JSON.parse(localStorage.getItem(LS)); if (d && d.days) data = d; } catch {}
+  function save(){ try { localStorage.setItem(LS, JSON.stringify(data)); } catch { toast('No se pudo guardar en este navegador.'); } }
+
+  const state = { view: 'day', cur: today(), week: weekStart(today()) };
+
+  // good = cumple el objetivo, bad = respuesta mala, null = sin marcar
+  function status(task, k){
+    const v = (data.days[k] || {})[task.id];
+    if (v == null) return null;
+    if (task.type === 'yesno') return v === task.good ? 'good' : 'bad';
+    return 'good';
+  }
+  function weekCount(task, mon){ let n = 0; for (let i = 0; i < 7; i++) if (status(task, shift(mon, i)) === 'good') n++; return n; }
+
+  function setVal(id, v){
+    const k = state.cur, d = { ...(data.days[k] || {}) };
+    if (v == null) delete d[id]; else d[id] = v;
+    if (Object.keys(d).length) data.days[k] = d; else delete data.days[k];
+    save();
+    if (navigator.vibrate) try { navigator.vibrate(8); } catch {}
+    render();
+  }
+
+  function saveNote(k, txt){
+    const d = { ...(data.days[k] || {}) };
+    if (txt.trim()) d._note = txt; else delete d._note;
+    if (Object.keys(d).length) data.days[k] = d; else delete data.days[k];
+    save();
+  }
+
+  function relLabel(k){ const t = today(); if (k === t) return 'Hoy'; if (k === shift(t,-1)) return 'Ayer'; const s = DOW[parse(k).getDay()]; return s[0].toUpperCase() + s.slice(1); }
+  function absLabel(k){ const d = parse(k); return `${DOW[d.getDay()]} ${d.getDate()} de ${MON[d.getMonth()]} ${d.getFullYear()}`; }
+  function shortLabel(k){ const d = parse(k); return `${d.getDate()} ${MON[d.getMonth()]}`; }
+
+  function render(){
+    ['day','week','data'].forEach(v => $('#tab-' + v).setAttribute('aria-selected', state.view === v));
+    ({ day: renderDay, week: renderWeek, data: renderData })[state.view]();
+  }
+
+  function renderDay(){
+    const k = state.cur, vals = data.days[k] || {}, mon = weekStart(k);
+    const good = TASKS.filter(t => status(t, k) === 'good').length;
+    const rows = TASKS.map(t => {
+      const v = vals[t.id], wc = weekCount(t, mon);
+      const goalTxt = t.goal === 7 ? 'todos los días' : `${t.goal} por semana`;
+      let ctl;
+      if (t.type === 'check') ctl = `<button class="chk${v ? ' on' : ''}" data-id="${t.id}" data-v="1" aria-label="${esc(t.name)}" aria-pressed="${!!v}">${CHECK}</button>`;
+      else {
+        const opts = t.type === 'pick' ? t.options : ['Sí', 'No'];
+        ctl = '<div class="seg">' + opts.map(o => {
+          const cls = v === o ? ' on ' + (t.type === 'pick' ? 'pick' : (o === t.good ? 'good' : 'bad')) : '';
+          return `<button class="${cls.trim()}" data-id="${t.id}" data-v="${esc(o)}" aria-pressed="${v === o}">${esc(o)}</button>`;
+        }).join('') + '</div>';
+      }
+      return `<div class="row"><div class="info"><div class="name">${esc(t.name)}</div>
+        <div class="meta">${t.note ? `<span>${esc(t.note)}</span>` : ''}<span>${goalTxt}</span><span class="chip${wc >= t.goal ? ' ok' : ''}">${wc}/${t.goal} sem</span></div></div>${ctl}</div>`;
+    }).join('');
+    $('#view').innerHTML = `<div class="sec" style="gap:16px">
+      <div class="day"><button class="nav" id="prev" aria-label="Día anterior">${L}</button>
+        <div class="date"><div class="rel">${relLabel(k)}</div><div class="abs">${absLabel(k)}</div></div>
+        <button class="nav" id="next" aria-label="Día siguiente" ${k >= today() ? 'disabled' : ''}>${R}</button></div>
+      <div class="score"><div class="bar"><i style="width:${good / TASKS.length * 100}%"></i></div><span>${good}/${TASKS.length}</span></div>
+      <div class="list">${rows}</div>
+      <div class="sec"><h2>Notas del día</h2><textarea class="note" id="note" placeholder="Qué hiciste hoy, qué practicaste en BJJ, cómo te sentiste…">${esc(vals._note || '')}</textarea></div>
+      ${backupNag()}
+    </div>`;
+    $('#prev').onclick = () => { state.cur = shift(k, -1); render(); };
+    $('#next').onclick = () => { if (k < today()) { state.cur = shift(k, 1); render(); } };
+    document.querySelectorAll('[data-id]').forEach(b => b.onclick = () => {
+      const t = TASKS.find(t => t.id === b.dataset.id), v = b.dataset.v;
+      const cur = vals[t.id];
+      if (t.type === 'check') setVal(t.id, cur ? null : 1);
+      else setVal(t.id, cur === v ? null : v);   // tocar de nuevo desmarca
+    });
+    let nt;
+    $('#note').oninput = e => { clearTimeout(nt); const txt = e.target.value; nt = setTimeout(() => saveNote(k, txt), 400); };
+    $('#note').onblur = e => { clearTimeout(nt); saveNote(k, e.target.value); };
+    const g = $('#go-data'); if (g) g.onclick = () => { state.view = 'data'; render(); };
+  }
+
+  function backupNag(){
+    const n = Object.keys(data.days).length; if (n < 3) return '';
+    const days = data.lastBackup ? Math.floor((Date.now() - data.lastBackup) / 864e5) : null;
+    if (days !== null && days < 7) return '';
+    return `<button class="chip" id="go-data" style="align-self:center;padding:8px 12px">${days === null ? 'Todavía no guardaste una copia de tus datos' : `Última copia hace ${days} días`} · guardar</button>`;
+  }
+
+  function renderWeek(){
+    const mon = state.week, t = today(), days = [...Array(7)].map((_, i) => shift(mon, i));
+    const head = '<tr><th>Tarea</th>' + ['D','L','M','M','J','V','S'].map(x => `<th>${x}</th>`).join('') + '<th></th></tr>';
+    const body = TASKS.map(task => {
+      const cells = days.map(k => {
+        const s = status(task, k), v = (data.days[k] || {})[task.id];
+        const txt = task.type === 'pick' && v ? (v === 'Gi' ? 'G' : 'NG') : '';
+        return `<td class="c${k === t ? ' today' : ''}"><span class="${s === 'good' ? 'g' : s === 'bad' ? 'b' : ''}">${k > t ? '' : txt}</span></td>`;
+      }).join('');
+      const n = weekCount(task, mon);
+      return `<tr><td class="t">${esc(task.name)}</td>${cells}<td class="n${n >= task.goal ? ' ok' : ''}">${n}/${task.goal}</td></tr>`;
+    }).join('');
+    const weeks = [...Array(8)].map((_, i) => {
+      const m = shift(weekStart(t), -7 * i);
+      const met = TASKS.filter(task => weekCount(task, m) >= task.goal).length;
+      return `<div class="wk"><div class="l">${i === 0 ? 'esta semana' : 'sem ' + shortLabel(m)}</div><div class="b"><i style="width:${met / TASKS.length * 100}%"></i></div><div class="p">${met}/${TASKS.length}</div></div>`;
+    }).join('');
+    const notes = days.filter(k => (data.days[k] || {})._note).map(k => `<div class="card"><div class="d">${absLabel(k)}</div><div class="x">${esc(data.days[k]._note)}</div></div>`).join('');
+    $('#view').innerHTML = `<div class="sec" style="gap:18px">
+      <div class="sec"><div class="weekhead"><button class="nav" id="wprev" aria-label="Semana anterior">${L}</button>
+        <h2>${shortLabel(mon)} – ${shortLabel(shift(mon, 6))}</h2>
+        <button class="nav" id="wnext" aria-label="Semana siguiente" ${mon >= weekStart(t) ? 'disabled' : ''}>${R}</button></div>
+        <div class="gridbox"><table>${head}${body}</table></div></div>
+      <div class="sec"><h2>Notas de la semana</h2>${notes ? `<div class="notes">${notes}</div>` : '<p style="margin:0;color:var(--muted);font-size:14px">Sin notas esta semana.</p>'}</div>
+      <div class="sec"><h2>Objetivos cumplidos por semana</h2><div class="card weeks">${weeks}</div></div>
+    </div>`;
+    $('#wprev').onclick = () => { state.week = shift(mon, -7); render(); };
+    $('#wnext').onclick = () => { if (mon < weekStart(t)) { state.week = shift(mon, 7); render(); } };
+  }
+
+  function renderData(){
+    const n = Object.keys(data.days).length;
+    const last = data.lastBackup ? new Date(data.lastBackup).toLocaleDateString('es-AR') : 'nunca';
+    $('#view').innerHTML = `<div class="sec" style="gap:14px">
+      <div class="card"><h2>Dónde están tus datos</h2>
+        <p>Se guardan <b>dentro del navegador de este teléfono</b>, no en el archivo. Hay <b>${n} días</b> registrados. Última copia: <b>${last}</b>.</p>
+        <p class="warn">Si borrás los datos del navegador o abrís el archivo desde otro lugar, no los vas a ver. Guardá una copia seguido.</p></div>
+      <div class="card"><h2>Guardar copia</h2>
+        <p>Mandate el texto a vos mismo por WhatsApp, mail o Notas.</p>
+        <div class="btns"><button class="btn" id="share">Enviar copia</button><button class="btn ghost" id="copy">Copiar texto</button></div>
+        <textarea id="out" readonly hidden></textarea></div>
+      <div class="card"><h2>Recuperar copia</h2>
+        <p>Pegá acá el texto de una copia y tocá Recuperar. Reemplaza los datos actuales.</p>
+        <textarea id="in" placeholder="Pegá la copia acá"></textarea>
+        <div class="btns"><button class="btn ghost" id="restore">Recuperar</button></div></div>
+    </div>`;
+    const dump = () => JSON.stringify({ app: 'mi-rutina', v: 1, days: data.days });
+    const mark = () => { data.lastBackup = Date.now(); save(); };
+    const showText = () => { const o = $('#out'); o.value = dump(); o.hidden = false; o.focus(); o.select(); };
+    $('#share').onclick = async () => {
+      if (navigator.share) {
+        try { await navigator.share({ title: 'Copia Mi Rutina ' + today(), text: dump() }); mark(); toast('Copia enviada'); renderData(); return; }
+        catch (e) { if (e && e.name === 'AbortError') return; }
+      }
+      showText(); toast('Copiá el texto de abajo y guardalo');
+    };
+    $('#copy').onclick = async () => {
+      try { await navigator.clipboard.writeText(dump()); mark(); toast('Copiado. Pegalo en WhatsApp o Notas.'); renderData(); }
+      catch { showText(); mark(); toast('Mantené apretado el texto y copialo'); }
+    };
+    $('#restore').onclick = () => {
+      try {
+        const d = JSON.parse($('#in').value.trim());
+        if (!d || typeof d.days !== 'object') throw 0;
+        data.days = d.days; save(); toast(`Listo: ${Object.keys(d.days).length} días recuperados`); state.view = 'day'; render();
+      } catch { toast('Ese texto no es una copia válida.'); }
+    };
+  }
+
+  let tt;
+  function toast(msg){ const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(tt); tt = setTimeout(() => t.hidden = true, 3200); }
+
+  $('#tab-day').onclick = () => { state.view = 'day'; render(); };
+  $('#tab-week').onclick = () => { state.view = 'week'; state.week = weekStart(state.cur); render(); };
+  $('#tab-data').onclick = () => { state.view = 'data'; render(); };
+  let lastToday = today();
+  setInterval(() => { const t = today(); if (t !== lastToday) { if (state.cur === lastToday) state.cur = t; lastToday = t; render(); } }, 60000);
+  render();
+  // pedir al navegador que no borre los datos, y funcionar sin internet
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+})();
+</script>
+</body>
+</html>
