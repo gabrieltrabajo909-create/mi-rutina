@@ -193,14 +193,16 @@ const DEFAULT_TASKS = [
   }
   function weekCount(task, ws){ let n = 0; for (let i = 0; i < 7; i++) if (status(task, shift(ws, i)) === 'good') n++; return n; }
 
-  // Puntaje del día: % de tareas cumplidas. Las diarias cuentan siempre;
+  // Puntaje del día: % de tareas cumplidas, pesado por posición: la de más arriba vale más
+  // (con N tareas, la 1.ª pesa N, la 2.ª N-1, … la última 1). Las diarias cuentan siempre;
   // las de "X por semana" solo suman el día que las hacés (no restan los días de descanso).
   function dayScore(k){
+    const T = tasks(), n = T.length;
     let den = 0, num = 0;
-    tasks().forEach(t => {
-      const ok = status(t, k) === 'good';
-      if (t.goal >= 7) { den++; if (ok) num++; }
-      else if (ok) { den++; num++; }
+    T.forEach((t, i) => {
+      const w = n - i, ok = status(t, k) === 'good';
+      if (t.goal >= 7) { den += w; if (ok) num += w; }
+      else if (ok) { den += w; num += w; }
     });
     return den ? Math.round(num / den * 100) : 0;
   }
@@ -330,7 +332,7 @@ const DEFAULT_TASKS = [
       <h2>Tus tareas</h2>
       ${cards}
       <button class="btn" id="add">+ Agregar tarea</button>
-      <p class="muted">Los cambios se guardan solos. Si borrás una tarea, lo que marcaste antes queda guardado.</p>
+      <p class="muted">Las tareas de más arriba pesan más en el puntaje del día: ordenalas por importancia con las flechas. Los cambios se guardan solos. Si borrás una tarea, lo que marcaste antes queda guardado.</p>
     </div>`;
     document.querySelectorAll('.ed').forEach(card => {
       const i = +card.dataset.i, t = T[i];
