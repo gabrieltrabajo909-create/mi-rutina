@@ -120,6 +120,14 @@ tr.sc td.t{font:700 13px var(--font)}
 .ico:disabled{opacity:.25}
 .ico svg{width:18px;height:18px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
 .delc{flex:none;height:38px;padding:0 10px;border-radius:10px;background:var(--bad);color:#fff;font-weight:700;font-size:13px}
+.extras{display:flex;flex-wrap:wrap;gap:8px}
+.xchip{display:inline-flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:6px 6px 6px 12px;font-size:14px}
+.xchip b{color:var(--good)}
+.xchip button{width:24px;height:24px;border-radius:50%;background:var(--sunk);font-weight:700;line-height:1}
+.xadd{display:flex;gap:8px}
+.xadd .in:first-child{flex:1}
+.xadd select{width:auto}
+.btn.ghost.danger{background:none;border:1px solid var(--line);color:var(--bad);font-weight:600}
 .warn{color:var(--bad)!important;font-weight:600}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--ground);padding:10px 16px;border-radius:12px;font-size:14px;font-weight:600;max-width:calc(100% - 32px);text-align:center}
 </style>
@@ -180,9 +188,20 @@ const DEFAULT_TASKS = [
   try { const d = JSON.parse(localStorage.getItem(LS)); if (d && d.days) data = d; } catch {}
   if (!Array.isArray(data.tasks)) data.tasks = JSON.parse(JSON.stringify(DEFAULT_TASKS));
   const tasks = () => data.tasks;
-  function save(){ try { localStorage.setItem(LS, JSON.stringify(data)); } catch { toast('No se pudo guardar en este teléfono.'); } }
+  // Cada día guarda una "foto" de las tareas que había (_snap). Los días pasados usan su foto,
+  // así cambiar, reordenar o borrar tareas no altera lo que ya pasó. Hoy siempre sigue las tareas actuales.
+  const snapOf = () => JSON.parse(JSON.stringify(tasks()));
+  function freeze(){
+    const t = today();
+    for (const k in data.days) if (k < t && !data.days[k]._snap) data.days[k]._snap = snapOf();
+    if (data.days[t]) data.days[t]._snap = snapOf();
+  }
+  const tasksFor = k => (k < today() && data.days[k] && data.days[k]._snap) || tasks();
+  function save(){ freeze(); try { localStorage.setItem(LS, JSON.stringify(data)); } catch { toast('No se pudo guardar en este teléfono.'); } }
+  const hasRecord = k => { const d = data.days[k]; return !!d && Object.keys(d).some(x => x !== '_snap'); };
 
-  const state = { view: 'day', cur: today(), week: weekStart(today()), confirmDel: null };
+  const state = { view: 'day', cur: today(), week: weekStart(today()), confirmDel: null, confirmDay: null, confirmWeek: null };
+  freeze(); try { localStorage.setItem(LS, JSON.stringify(data)); } catch {}
 
   // good = cumple el objetivo, bad = respuesta mala, null = sin marcar
   function status(task, k){
@@ -193,18 +212,20 @@ const DEFAULT_TASKS = [
   }
   function weekCount(task, ws){ let n = 0; for (let i = 0; i < 7; i++) if (status(task, shift(ws, i)) === 'good') n++; return n; }
 
-  // Puntaje del día: % de tareas cumplidas, pesado por posición: la de más arriba vale más
-  // (con N tareas, la 1.ª pesa N, la 2.ª N-1, … la última 1). Las diarias cuentan siempre;
-  // las de "X por semana" solo suman el día que las hacés (no restan los días de descanso).
+  // Puntaje del día: % de tareas cumplidas, con peso. Peso = posición (con N tareas la 1.ª vale N,
+  // la última 1) × "vale" de la tarea (x1 a x5, para tareas largas como trabajar 8 h).
+  // Las diarias cuentan siempre; las de "X por semana" solo suman el día que las hacés.
+  // Los extras del día (ej. "Moto +10") suman puntos directo y pueden pasar el 100%.
   function dayScore(k){
-    const T = tasks(), n = T.length;
+    const T = tasksFor(k), n = T.length;
     let den = 0, num = 0;
     T.forEach((t, i) => {
-      const w = n - i, ok = status(t, k) === 'good';
+      const w = (n - i) * (t.peso || 1), ok = status(t, k) === 'good';
       if (t.goal >= 7) { den += w; if (ok) num += w; }
       else if (ok) { den += w; num += w; }
     });
-    return den ? Math.round(num / den * 100) : 0;
+    const extra = ((data.days[k] || {})._extra || []).reduce((s, e) => s + e.p, 0);
+    return (den ? Math.round(num / den * 100) : 0) + extra;
   }
   const scoreCls = s => s >= 80 ? 'hi' : s >= 50 ? 'mid' : 'lo';
 
@@ -234,8 +255,8 @@ const DEFAULT_TASKS = [
   }
 
   function renderDay(){
-    const k = state.cur, vals = data.days[k] || {}, ws = weekStart(k), T = tasks();
-    const sc = dayScore(k);
+    const k = state.cur, vals = data.days[k] || {}, ws = weekStart(k), T = tasksFor(k);
+    const sc = dayScore(k), extras = vals._extra || [];
     const rows = T.map(t => {
       const v = vals[t.id], wc = weekCount(t, ws);
       let ctl;
@@ -248,30 +269,59 @@ const DEFAULT_TASKS = [
         }).join('') + '</div>';
       }
       return `<div class="row"><div class="info"><div class="name">${esc(t.name)}</div>
-        <div class="meta">${t.note ? `<span>${esc(t.note)}</span>` : ''}<span>${goalTxt(t.goal)}</span><span class="chip${wc >= t.goal ? ' ok' : ''}">${wc}/${t.goal} sem</span></div></div>${ctl}</div>`;
+        <div class="meta">${t.note ? `<span>${esc(t.note)}</span>` : ''}<span>${goalTxt(t.goal)}</span>${(t.peso || 1) > 1 ? `<span class="chip">vale x${t.peso}</span>` : ''}<span class="chip${wc >= t.goal ? ' ok' : ''}">${wc}/${t.goal} sem</span></div></div>${ctl}</div>`;
     }).join('');
     $('#view').innerHTML = `<div class="sec" style="gap:16px">
       <div class="day"><button class="nav" id="prev" aria-label="Día anterior">${L}</button>
         <div class="date"><div class="rel">${relLabel(k)}</div><div class="abs">${absLabel(k)}</div></div>
         <button class="nav" id="next" aria-label="Día siguiente" ${k >= today() ? 'disabled' : ''}>${R}</button></div>
-      <div class="score"><div class="big ${scoreCls(sc)}">${sc}<small>%</small></div><div class="bar"><i class="${scoreCls(sc)}" style="width:${sc}%"></i></div><span>puntaje</span></div>
+      <div class="score"><div class="big ${scoreCls(sc)}">${sc}<small>%</small></div><div class="bar"><i class="${scoreCls(sc)}" style="width:${Math.min(sc, 100)}%"></i></div><span>puntaje</span></div>
       ${T.length ? `<div class="list">${rows}</div>` : '<div class="card"><p>No tenés tareas. Agregalas en la pestaña <b>Tareas</b>.</p></div>'}
+      <div class="sec"><h2>Extras del día</h2>
+        <p class="muted">Algo que hiciste aparte y suma al puntaje (andar en moto, una mudanza…).</p>
+        ${extras.length ? `<div class="extras">${extras.map((e, i) => `<span class="xchip">${esc(e.n)} <b>+${e.p}%</b><button data-x="${i}" aria-label="Quitar">×</button></span>`).join('')}</div>` : ''}
+        <form class="xadd" id="xform"><input class="in" id="xname" placeholder="ej. Moto" maxlength="40" autocomplete="off">
+          <select class="in" id="xpts">${[5, 10, 15, 20, 25, 30].map(p => `<option value="${p}" ${p === 10 ? 'selected' : ''}>+${p}%</option>`).join('')}</select>
+          <button class="btn" type="submit">Sumar</button></form></div>
       <div class="sec"><h2>Notas del día</h2><textarea class="note" id="note" placeholder="Qué hiciste hoy, qué practicaste en BJJ, cómo te sentiste…">${esc(vals._note || '')}</textarea></div>
+      ${k < today() && hasRecord(k) ? `<button class="btn ghost danger" id="delday">${state.confirmDay === k ? '¿Seguro? Tocá de nuevo para borrar' : 'Borrar el registro de este día'}</button>` : ''}
     </div>`;
-    $('#prev').onclick = () => { state.cur = shift(k, -1); render(); };
-    $('#next').onclick = () => { if (k < today()) { state.cur = shift(k, 1); render(); } };
+    $('#prev').onclick = () => { state.cur = shift(k, -1); state.confirmDay = null; render(); };
+    $('#next').onclick = () => { if (k < today()) { state.cur = shift(k, 1); state.confirmDay = null; render(); } };
     document.querySelectorAll('[data-id]').forEach(b => b.onclick = () => {
       const t = T.find(t => t.id === b.dataset.id), v = b.dataset.v, cur = vals[t.id];
       if (t.type === 'check') setVal(t.id, cur ? null : 1);
       else setVal(t.id, cur === v ? null : v);   // tocar de nuevo desmarca
     });
+    $('#xform').onsubmit = e => {
+      e.preventDefault();
+      const n = $('#xname').value.trim(); if (!n) return $('#xname').focus();
+      const dd = { ...(data.days[k] || {}) }; dd._extra = [...(dd._extra || []), { n, p: +$('#xpts').value }];
+      data.days[k] = dd; save(); render();
+    };
+    document.querySelectorAll('[data-x]').forEach(b => b.onclick = () => {
+      const dd = { ...data.days[k] }; dd._extra = dd._extra.filter((_, i) => i !== +b.dataset.x);
+      if (!dd._extra.length) delete dd._extra; data.days[k] = dd; save(); render();
+    });
+    const dbtn = $('#delday');
+    if (dbtn) dbtn.onclick = () => {
+      if (state.confirmDay !== k) { state.confirmDay = k; return render(); }
+      delete data.days[k]; state.confirmDay = null; save(); toast('Registro del día borrado'); render();
+    };
     let nt;
     $('#note').oninput = e => { clearTimeout(nt); const txt = e.target.value; nt = setTimeout(() => saveNote(k, txt), 400); };
     $('#note').onblur = e => { clearTimeout(nt); saveNote(k, e.target.value); };
   }
 
+  // tareas que existieron en una semana: las actuales (si incluye hoy) más las de las fotos de cada día
+  function weekTasks(ws){
+    const t = today(), m = new Map();
+    if (shift(ws, 6) >= t) tasks().forEach(x => m.set(x.id, x));
+    for (let i = 6; i >= 0; i--) { const k = shift(ws, i); if (k <= t) tasksFor(k).forEach(x => { if (!m.has(x.id)) m.set(x.id, x); }); }
+    return [...m.values()];
+  }
   function renderWeek(){
-    const ws = state.week, t = today(), days = [...Array(7)].map((_, i) => shift(ws, i)), T = tasks();
+    const ws = state.week, t = today(), days = [...Array(7)].map((_, i) => shift(ws, i)), T = weekTasks(ws);
     const head = '<tr><th>Tarea</th>' + ['D','L','M','M','J','V','S'].map(x => `<th>${x}</th>`).join('') + '<th></th></tr>';
     const body = T.map(task => {
       const cells = days.map(k => {
@@ -288,8 +338,8 @@ const DEFAULT_TASKS = [
     }).join('') + `<td class="n">${weekAvg(ws)}%</td></tr>`;
     const weeks = [...Array(8)].map((_, i) => {
       const w = shift(weekStart(t), -7 * i), avg = weekAvg(w);
-      const met = T.filter(task => weekCount(task, w) >= task.goal).length;
-      return `<div class="wk"><div class="l">${i === 0 ? 'esta semana' : 'sem ' + shortLabel(w)}</div><div class="b"><i class="${scoreCls(avg)}" style="width:${avg}%"></i></div><div class="p">${avg}%</div><div class="o">${met}/${T.length} obj</div></div>`;
+      const WT = weekTasks(w), met = WT.filter(task => weekCount(task, w) >= task.goal).length;
+      return `<div class="wk"><div class="l">${i === 0 ? 'esta semana' : 'sem ' + shortLabel(w)}</div><div class="b"><i class="${scoreCls(avg)}" style="width:${Math.min(avg, 100)}%"></i></div><div class="p">${avg}%</div><div class="o">${met}/${WT.length} obj</div></div>`;
     }).join('');
     const notes = days.filter(k => (data.days[k] || {})._note).map(k => `<div class="card"><div class="d">${absLabel(k)}</div><div class="x">${esc(data.days[k]._note)}</div></div>`).join('');
     $('#view').innerHTML = `<div class="sec" style="gap:18px">
@@ -299,9 +349,16 @@ const DEFAULT_TASKS = [
         <div class="gridbox"><table>${head}${body}${scoreRow}</table></div></div>
       <div class="sec"><h2>Notas de la semana</h2>${notes ? `<div class="notes">${notes}</div>` : '<p class="muted">Sin notas esta semana.</p>'}</div>
       <div class="sec"><h2>Puntaje promedio por semana</h2><div class="card weeks">${weeks}</div></div>
+      ${days.some(k => k < t && hasRecord(k)) ? `<button class="btn ghost danger" id="delweek">${state.confirmWeek === ws ? '¿Seguro? Tocá de nuevo para borrar' : 'Borrar los registros de esta semana'}</button>` : ''}
     </div>`;
-    $('#wprev').onclick = () => { state.week = shift(ws, -7); render(); };
-    $('#wnext').onclick = () => { if (ws < weekStart(t)) { state.week = shift(ws, 7); render(); } };
+    $('#wprev').onclick = () => { state.week = shift(ws, -7); state.confirmWeek = null; render(); };
+    $('#wnext').onclick = () => { if (ws < weekStart(t)) { state.week = shift(ws, 7); state.confirmWeek = null; render(); } };
+    const wb = $('#delweek');
+    if (wb) wb.onclick = () => {
+      if (state.confirmWeek !== ws) { state.confirmWeek = ws; return render(); }
+      days.forEach(k => { if (k < t) delete data.days[k]; });   // hoy no se toca
+      state.confirmWeek = null; save(); toast('Registros de la semana borrados'); render();
+    };
   }
   // promedio de los días de la semana hasta hoy
   function weekAvg(ws){
@@ -321,6 +378,7 @@ const DEFAULT_TASKS = [
       <div class="edgrid">
         <label>Detalle<input class="in" data-f="note" value="${esc(t.note || '')}" placeholder="ej. 30 min" maxlength="40"></label>
         <label>Objetivo<select class="in" data-f="goal">${goalOpts(t.goal)}</select></label>
+        <label>Vale<select class="in" data-f="peso">${[1,2,3,4,5].map(n => `<option value="${n}" ${n === (t.peso || 1) ? 'selected' : ''}>${n === 1 ? 'Normal' : 'x' + n}</option>`).join('')}</select></label>
         <label>Cómo se marca<select class="in" data-f="type">
           <option value="check" ${t.type === 'check' ? 'selected' : ''}>Hecho ✓</option>
           <option value="yesno" ${t.type === 'yesno' ? 'selected' : ''}>Sí / No</option>
@@ -332,14 +390,14 @@ const DEFAULT_TASKS = [
       <h2>Tus tareas</h2>
       ${cards}
       <button class="btn" id="add">+ Agregar tarea</button>
-      <p class="muted">Las tareas de más arriba pesan más en el puntaje del día: ordenalas por importancia con las flechas. Los cambios se guardan solos. Si borrás una tarea, lo que marcaste antes queda guardado.</p>
+      <p class="muted">Las de más arriba pesan más en el puntaje: ordenalas con las flechas. Con <b>Vale</b> le das más peso a una tarea larga (ej. Trabajo 8 h → x4). Los cambios valen desde hoy: los días que ya pasaron no se modifican.</p>
     </div>`;
     document.querySelectorAll('.ed').forEach(card => {
       const i = +card.dataset.i, t = T[i];
       card.querySelectorAll('[data-f]').forEach(inp => inp.onchange = () => {
         const f = inp.dataset.f; let v = inp.value;
         if (f === 'name') { v = v.trim(); if (!v) { inp.value = t.name; return; } }
-        if (f === 'goal') v = +v;
+        if (f === 'goal' || f === 'peso') v = +v;
         if (f === 'options') { v = v.split(',').map(s => s.trim()).filter(Boolean); if (!v.length) v = ['Hecho']; }
         t[f] = v;
         if (f === 'type') { if (v === 'yesno' && !t.good) t.good = 'Sí'; if (v === 'pick' && !(t.options || []).length) t.options = ['Opción 1', 'Opción 2']; }
