@@ -216,7 +216,7 @@ const DEFAULT_TASKS = [
   }
   function weekCount(task, ws){ let n = 0; for (let i = 0; i < 7; i++) if (status(task, shift(ws, i)) === 'good') n++; return n; }
 
-  // Puntaje del día: % de tareas cumplidas, cada una con su "vale" (x1 a x5, para tareas largas
+  // Puntaje del día: % de tareas cumplidas, cada una con su "vale" (x1 a x10, para tareas largas
   // como trabajar 8 h). El orden de la lista no cambia el peso.
   // Las diarias cuentan completas todos los días. Las de "X por semana" cuentan completas el día que
   // las hacés y, los otros días, una parte (X/7): así un día no llega al 100% con una sola tarea.
@@ -381,7 +381,7 @@ const DEFAULT_TASKS = [
       <div class="edgrid">
         <label>Detalle<input class="in" data-f="note" value="${esc(t.note || '')}" placeholder="ej. 30 min" maxlength="40"></label>
         <label>Objetivo<select class="in" data-f="goal">${goalOpts(t.goal)}</select></label>
-        <label>Vale<select class="in" data-f="peso">${[1,2,3,4,5].map(n => `<option value="${n}" ${n === (t.peso || 1) ? 'selected' : ''}>${n === 1 ? 'Normal' : 'x' + n}</option>`).join('')}</select></label>
+        <label>Vale<select class="in" data-f="peso">${[1,2,3,4,5,6,7,8,9,10].map(n => `<option value="${n}" ${n === (t.peso || 1) ? 'selected' : ''}>${n === 1 ? 'Normal' : 'x' + n}</option>`).join('')}</select></label>
         <label>Cómo se marca<select class="in" data-f="type">
           <option value="check" ${t.type === 'check' ? 'selected' : ''}>Hecho ✓</option>
           <option value="yesno" ${t.type === 'yesno' ? 'selected' : ''}>Sí / No</option>
