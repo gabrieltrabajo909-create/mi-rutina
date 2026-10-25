@@ -218,15 +218,16 @@ const DEFAULT_TASKS = [
 
   // Puntaje del día: % de tareas cumplidas, cada una con su "vale" (x1 a x5, para tareas largas
   // como trabajar 8 h). El orden de la lista no cambia el peso.
-  // Las diarias cuentan siempre; las de "X por semana" solo suman el día que las hacés.
+  // Las diarias cuentan completas todos los días. Las de "X por semana" cuentan completas el día que
+  // las hacés y, los otros días, una parte (X/7): así un día no llega al 100% con una sola tarea.
   // Los extras del día (ej. "Moto +10") suman puntos directo y pueden pasar el 100%.
   function dayScore(k){
     const T = tasksFor(k);
     let den = 0, num = 0;
     T.forEach(t => {
       const w = t.peso || 1, ok = status(t, k) === 'good';
-      if (t.goal >= 7) { den += w; if (ok) num += w; }
-      else if (ok) { den += w; num += w; }
+      if (ok) { den += w; num += w; }
+      else den += t.goal >= 7 ? w : w * (t.goal || 1) / 7;
     });
     const extra = ((data.days[k] || {})._extra || []).reduce((s, e) => s + e.p, 0);
     return (den ? Math.round(num / den * 100) : 0) + extra;
