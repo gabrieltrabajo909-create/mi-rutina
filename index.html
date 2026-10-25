@@ -128,6 +128,9 @@ tr.sc td.t{font:700 13px var(--font)}
 .xadd .in:first-child{flex:1}
 .xadd select{width:auto}
 .btn.ghost.danger{background:none;border:1px solid var(--line);color:var(--bad);font-weight:600}
+.grip{width:34px;height:40px;display:grid;place-items:center;color:var(--muted);flex:none;touch-action:none;cursor:grab}
+.ed{transition:transform .15s}
+.ed.dragging{transition:none;position:relative;z-index:2;box-shadow:0 10px 30px rgba(0,0,0,.35)}
 .warn{color:var(--bad)!important;font-weight:600}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--ground);padding:10px 16px;border-radius:12px;font-size:14px;font-weight:600;max-width:calc(100% - 32px);text-align:center}
 </style>
@@ -176,6 +179,7 @@ const DEFAULT_TASKS = [
   const CHECK = '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const L = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg>';
   const R = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg>';
+  const GRIP = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>';
   const IC = {
     up:'<svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg>',
     down:'<svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>',
@@ -212,15 +216,15 @@ const DEFAULT_TASKS = [
   }
   function weekCount(task, ws){ let n = 0; for (let i = 0; i < 7; i++) if (status(task, shift(ws, i)) === 'good') n++; return n; }
 
-  // Puntaje del día: % de tareas cumplidas, con peso. Peso = posición (con N tareas la 1.ª vale N,
-  // la última 1) × "vale" de la tarea (x1 a x5, para tareas largas como trabajar 8 h).
+  // Puntaje del día: % de tareas cumplidas, cada una con su "vale" (x1 a x5, para tareas largas
+  // como trabajar 8 h). El orden de la lista no cambia el peso.
   // Las diarias cuentan siempre; las de "X por semana" solo suman el día que las hacés.
   // Los extras del día (ej. "Moto +10") suman puntos directo y pueden pasar el 100%.
   function dayScore(k){
-    const T = tasksFor(k), n = T.length;
+    const T = tasksFor(k);
     let den = 0, num = 0;
-    T.forEach((t, i) => {
-      const w = (n - i) * (t.peso || 1), ok = status(t, k) === 'good';
+    T.forEach(t => {
+      const w = t.peso || 1, ok = status(t, k) === 'good';
       if (t.goal >= 7) { den += w; if (ok) num += w; }
       else if (ok) { den += w; num += w; }
     });
@@ -371,9 +375,7 @@ const DEFAULT_TASKS = [
     const T = tasks();
     const goalOpts = g => [1,2,3,4,5,6,7].map(n => `<option value="${n}" ${n === g ? 'selected' : ''}>${n === 7 ? 'Todos los días' : n + ' por semana'}</option>`).join('');
     const cards = T.map((t, i) => `<div class="card ed" data-i="${i}">
-      <div class="edtop"><input class="in name" data-f="name" value="${esc(t.name)}" placeholder="Nombre de la tarea" aria-label="Nombre" maxlength="60">
-        <button class="ico" data-a="up" aria-label="Subir" ${i === 0 ? 'disabled' : ''}>${IC.up}</button>
-        <button class="ico" data-a="down" aria-label="Bajar" ${i === T.length - 1 ? 'disabled' : ''}>${IC.down}</button>
+      <div class="edtop"><span class="grip" aria-label="Arrastrar para mover" title="Arrastrar para mover">${GRIP}</span><input class="in name" data-f="name" value="${esc(t.name)}" placeholder="Nombre de la tarea" aria-label="Nombre" maxlength="60">
         ${state.confirmDel === t.id ? '<button class="delc" data-a="del">¿Borrar?</button>' : `<button class="ico del" data-a="ask" aria-label="Borrar">${IC.del}</button>`}</div>
       <div class="edgrid">
         <label>Detalle<input class="in" data-f="note" value="${esc(t.note || '')}" placeholder="ej. 30 min" maxlength="40"></label>
@@ -390,7 +392,7 @@ const DEFAULT_TASKS = [
       <h2>Tus tareas</h2>
       ${cards}
       <button class="btn" id="add">+ Agregar tarea</button>
-      <p class="muted">Las de más arriba pesan más en el puntaje: ordenalas con las flechas. Con <b>Vale</b> le das más peso a una tarea larga (ej. Trabajo 8 h → x4). Los cambios valen desde hoy: los días que ya pasaron no se modifican.</p>
+      <p class="muted">Mantené apretado <b>⠿</b> y arrastrá para ordenar (el orden no cambia el puntaje). Con <b>Vale</b> le das más peso a una tarea (ej. Trabajo 8 h → x4). Los cambios valen desde hoy: los días que ya pasaron no se modifican.</p>
     </div>`;
     document.querySelectorAll('.ed').forEach(card => {
       const i = +card.dataset.i, t = T[i];
@@ -408,10 +410,29 @@ const DEFAULT_TASKS = [
         const a = b.dataset.a;
         if (a === 'ask') { state.confirmDel = t.id; return render(); }
         if (a === 'del') { T.splice(i, 1); toast(`"${t.name}" borrada`); }
-        if (a === 'up' && i > 0) [T[i-1], T[i]] = [T[i], T[i-1]];
-        if (a === 'down' && i < T.length - 1) [T[i+1], T[i]] = [T[i], T[i+1]];
         state.confirmDel = null; save(); render();
       });
+    });
+    // arrastrar desde ⠿ para reordenar
+    document.querySelectorAll('.grip').forEach(g => g.onpointerdown = e => {
+      e.preventDefault();
+      const card = g.closest('.ed'), from = +card.dataset.i, cards = [...document.querySelectorAll('.ed')];
+      const mids = cards.map(c => { const r = c.getBoundingClientRect(); return r.top + r.height / 2; });
+      const y0 = e.clientY; let to = from;
+      try { g.setPointerCapture(e.pointerId); } catch {}
+      card.classList.add('dragging');
+      g.onpointermove = ev => {
+        const dy = ev.clientY - y0; card.style.transform = `translateY(${dy}px)`;
+        const y = mids[from] + dy; to = mids.filter(m => m < y).length - (y > mids[from] ? 1 : 0);
+        to = Math.max(0, Math.min(cards.length - 1, to));
+        const h = card.getBoundingClientRect().height + 12;
+        cards.forEach((c, j) => { if (j === from) return; c.style.transform = from < to && j > from && j <= to ? `translateY(${-h}px)` : from > to && j < from && j >= to ? `translateY(${h}px)` : ''; });
+      };
+      g.onpointerup = g.onpointercancel = () => {
+        g.onpointermove = g.onpointerup = g.onpointercancel = null;
+        if (to !== from) { const [m] = T.splice(from, 1); T.splice(to, 0, m); save(); }
+        render();
+      };
     });
     $('#add').onclick = () => {
       T.push({ id: uid(), name: 'Nueva tarea', note: '', type: 'check', goal: 7 });
